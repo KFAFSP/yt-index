@@ -4,7 +4,7 @@ from aiohttp import ClientSession
 from lxml import etree
 import re
 
-from util import has_brotli, index_s, is_valid_encoding, parse_int, parse_ts
+from util import get_default_headers, has_brotli, index_s, is_valid_encoding, parse_int, parse_ts
 
 async def fetch_playlist(playlistId: str, chunk_size: int = 1024):
     """
@@ -53,26 +53,12 @@ async def fetch_playlist(playlistId: str, chunk_size: int = 1024):
     # Build the headers for the ClientSession.
     #
 
-    # Defaults are always accepted.
-    accept_encodings = [
-        'gzip',
-        'deflate'
-    ]
-    # If brotlipy is installed, brotli is also accepted.
-    if has_brotli():
-        accept_encodings.append('br')
-
-    headers = {
-        'Host': 'www.youtube.com',
-        # We do not need to lie about ourselves.
-        'User-Agent': 'Python/3.6 aiohttp/3.5.4',
-        # We cannot deal with anything else.
-        'Accept': 'text/html',
-        'Accept-Encoding': ', '.join(accept_encodings)
-    }
+    headers = get_default_headers()
+    # Only accept HTML.
+    headers['Accept'] = 'text/html'
 
     #
-    # Retrieve all data.
+    # Retrieve landing page.
     #
 
     # Open a auto-raising ClientSession with default cookie handling.
@@ -221,7 +207,7 @@ async def fetch_playlist(playlistId: str, chunk_size: int = 1024):
                 parser.feed(data['content_html'])
                 for _, node in parser.read_events():
                     if node.tag == 'tr':
-                        playlist['items'] += parse_item(node)
+                        playlist['items'] += [parse_item(node)]
 
                         # Discard everything before this point.
                         node.clear()
@@ -242,3 +228,74 @@ async def fetch_playlist(playlistId: str, chunk_size: int = 1024):
                     load_more = None
 
     return playlist
+
+#
+# Command line tool.
+#
+
+if __name__ == '__main__':
+    from argparse import ArgumentParser, FileType
+    import sys
+    from io import TextIOWrapper
+    from tqdm import tqdm
+    import json
+
+    from util import run_sync
+
+    #
+    # Command line interface.
+    #
+
+    cli = ArgumentParser(description='Fetch YoutTube playlist metadata')
+    cli.add_argument(
+        'playlistId',
+        metavar='ID',
+        nargs='+',
+        help='playlist id'
+    )
+    cli.add_argument(
+        '--output',
+        nargs='?',
+        default='list_{id}.json',
+        help='file name for output'
+    )
+    cli.add_argument(
+        '--pretty',
+        action='store_true',
+        default=False,
+        help='prettify JSON output'
+    )
+    cli.add_argument(
+        '--chunk-size',
+        dest='chunk_size',
+        type=int,
+        default=1024,
+        help='streaming chunk size'
+    )
+    args = cli.parse_args()
+
+    def open_output(id: str):
+        if args.output == '-':
+            return TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+        path = args.output.format(id=id)
+        return open(path, 'w', encoding='utf8')
+
+    dump = lambda x,f: json.dump(x, f)
+    if args.pretty:
+        dump = lambda x,f: json.dump(x, f, indent=4, separators=(',',': '))
+
+    try:
+        for id in tqdm(args.playlistId, file=sys.stderr):
+            with open_output(id) as file:
+                try:
+                    dump(run_sync(fetch_playlist, id, args.chunk_size), file)
+                except Exception as e:
+                    print("\nError fetching playlist:", file=sys.stderr)
+                    print(e, file=sys.stderr)
+
+        sys.exit(0)
+    except Exception as e:
+        print("\nUnexpected error:", file=sys.stderr)
+        print(e, file=sys.stderr)
+        sys.exit(1)

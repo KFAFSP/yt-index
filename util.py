@@ -1,6 +1,6 @@
 """Utility functions."""
 
-from typing import Any, Callable, Iterable, TypeVar
+from typing import Any, Callable, Dict, Iterable, TypeVar
 
 def str_s(x: Any, default: str=None) -> str:
     """
@@ -187,3 +187,24 @@ def is_valid_encoding(encoding: str) -> bool:
         return True
     except LookupError:
         return False
+
+def get_default_headers() -> Dict[str, str]:
+    """Get the default headers for YT queries."""
+
+    # Defaults are always accepted.
+    accept_encodings = [
+        'gzip',
+        'deflate'
+    ]
+
+    # If brotlipy is installed, brotli is also accepted.
+    if has_brotli():
+        accept_encodings.append('br')
+
+    return {
+        'Host': 'www.youtube.com',
+        # We do not need to lie about ourselves.
+        'User-Agent': 'Python/3.6 aiohttp/3.5.4',
+        # We cannot deal with anything else.
+        'Accept-Encoding': ', '.join(accept_encodings)
+    }

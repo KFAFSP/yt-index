@@ -26,14 +26,14 @@ async def fetch_playlist(playlistId: str, chunk_size: int = 1024):
             'name': string,
             'url': string
         },
-        'items' [
+        'items': [
             {
                 'id': string,
                 'title': string,
                 'uploader': {
                     'name': string,
                     'url': string
-                }
+                },
                 'lengthSeconds': integer,
             }
         ]

@@ -13,29 +13,30 @@ async def fetch_video(videoId: str, chunk_size: int = 1024):
 
     Result:
     {
-        'id': string,
-        'title': string,
-        'shortDescription': string,
-        'thumbnails': [
+        "id": string,
+        "title": string,
+        "lengthSeconds": integer,
+        "keywords": [ string ],
+        "shortDescription": string,
+        "thumbnails": [
             {
-                '',
+                "url": string,
+                "width": integer,
+                "height": integer
             }
         ],
-        'length': integer,
-        'views': integer,
-        'uploader': {
-            'name': string,
-            'url': string
+        "views": integer,
+        "uploader": {
+            "name": string,
+            "channelId": string,
+            "url": null
         },
-        'items' [
+        "captionTracks": [
             {
-                'id': string,
-                'title': string,
-                'uploader': {
-                    'name': string,
-                    'url': string
-                }
-                'lengthSeconds': integer,
+                "url": string,
+                "name": string,
+                "languageCode": string,
+                "kind": string
             }
         ]
     }
@@ -85,12 +86,19 @@ async def fetch_video(videoId: str, chunk_size: int = 1024):
             video['uploader'] = {
                 'name': index_s(details, 'author'),
                 'channelId': index_s(details, 'channelId'),
-                # TODO: Derive from channel ID?
                 'url': None,
             }
 
+            def extract_caption_track(data):
+                return {
+                    'url': index_s(data, 'baseUrl'),
+                    'name': index_s(data, 'name', 'simpleText'),
+                    'languageCode': index_s(data, 'languageCode'),
+                    'kind': index_s(data, 'kind')
+                }
+
             # Caption tracks.
-            video['captionTracks'] = list(index_s(info, 'captions', 'playerCaptionsTracklistRenderer', 'captionTracks', default=[]))
+            video['captionTracks'] = list(map(extract_caption_track, index_s(info, 'captions', 'playerCaptionsTracklistRenderer', 'captionTracks', default=[])))
 
     return video
 
